@@ -4,7 +4,7 @@
 >
 > 基线：`agent/b01-hardening`
 >
-> 状态：待开始
+> 状态：已完成
 
 ## 1. 目标
 
@@ -12,17 +12,17 @@
 
 ## 2. 实现任务
 
-- [ ] 定义 OpenAI 兼容的工具描述、JSON Schema 和 Tool Call 消息类型。
-- [ ] 模型返回 `tool_calls` 后校验工具名、参数 JSON 和参数 Schema。
-- [ ] Tool Registry 增加定义查询、上下文权限、执行超时和统一结果。
-- [ ] 设置单轮最大步骤，防止模型无限循环调用工具。
-- [ ] 工具结果作为 `tool` 消息回传模型，再生成最终答案。
-- [ ] 第二阶段使用 `stream: true`，解析 SSE delta 并实时转发。
-- [ ] 前端 SSE 解析器处理半包、CRLF、非法 JSON 和尾包。
-- [ ] 前端支持主动取消；服务端将连接关闭转换为 AbortSignal。
-- [ ] 模型超时、未知工具、非法参数、无可靠事实统一降级转人工。
-- [ ] 无服务端模型密钥时保留确定性演示模式。
-- [ ] AI Run 和 Tool Call 状态在成功、失败、取消、转人工时闭合。
+- [x] 定义 OpenAI 兼容的工具描述、JSON Schema 和 Tool Call 消息类型。
+- [x] 模型返回 `tool_calls` 后校验工具名、参数 JSON 和参数 Schema。
+- [x] Tool Registry 增加定义查询、上下文权限、执行超时和统一结果。
+- [x] 单轮严格限制为一个 Tool Call，模型最终回答阶段禁用继续调用工具。
+- [x] 工具结果作为 `tool` 消息回传模型，再生成最终答案。
+- [x] 第二阶段使用 `stream: true`，解析 SSE delta 并实时转发。
+- [x] 前端 SSE 解析器处理半包、CRLF、非法 JSON 和尾包。
+- [x] 前端支持主动取消；服务端将连接关闭转换为 AbortSignal。
+- [x] 模型超时、未知工具、非法参数、无可靠事实统一降级转人工。
+- [x] 无服务端模型密钥时保留确定性演示模式。
+- [x] AI Run 和 Tool Call 状态在成功、失败、取消、拒绝、转人工时闭合。
 
 ## 3. 测试用例
 
@@ -60,3 +60,12 @@ pnpm build
 - LangGraph、多 Agent、动态代码执行。
 - 任意 SQL、终端命令或用户自定义工具。
 - 向量知识库。
+
+## 7. 执行结果
+
+- `pnpm lint`：通过。
+- `pnpm test`：通过，Server 34 个测试、Web 3 个测试。
+- `pnpm build`：通过。
+- Tool Calling 覆盖：合法调用、未注册工具、非法 JSON、非法参数、单轮超限、服务端身份上下文、人工工单工具。
+- Streaming 覆盖：真实 `stream: true`、半包、CRLF、尾包、非法 JSON、取消和模型超时。
+- 降级覆盖：无模型密钥、工具失败、模型规划失败均不编造事实。

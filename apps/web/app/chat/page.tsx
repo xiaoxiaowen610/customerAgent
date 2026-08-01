@@ -2,10 +2,11 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, CircleDot, RefreshCw, Send, UserRound, WandSparkles } from "lucide-react";
+import { Bot, CircleDot, RefreshCw, Send, Square, UserRound, WandSparkles } from "lucide-react";
 import { AppShell } from "../../components/AppShell";
 import { API_BASE, apiFetch, authHeaders } from "../../lib/api";
 import { useSessionState } from "../../lib/session";
+import { readSse } from "../../lib/sse";
 
 interface Conversation {
   id: string;
@@ -29,6 +30,7 @@ interface TraceItem {
 export default function ChatPage() {
   const router = useRouter();
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const requestControllerRef = useRef<AbortController | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("帮我查一下借款审核进度");
@@ -84,11 +86,14 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, { id: `local-${Date.now()}`, role: "USER", content }]);
 
     let assistantText = "";
+    const requestController = new AbortController();
+    requestControllerRef.current = requestController;
     try {
       const response = await fetch(`${API_BASE}/conversations/${conversation.id}/messages`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ content })
+        body: JSON.stringify({ content }),
+        signal: requestController.signal
       });
       if (!response.ok || !response.body) {
         throw new Error(await response.text());
@@ -101,8 +106,8 @@ export default function ChatPage() {
             {
               id: `${Date.now()}-${prev.length}`,
               kind: "status",
-              title: data.label ?? data.stage,
-              detail: stageLabel(data.stage)
+              title: String(data.label ?? data.stage ?? "执行中"),
+              detail: stageLabel(String(data.stage ?? ""))
             }
           ]);
         }
@@ -112,20 +117,20 @@ export default function ChatPage() {
             {
               id: `${Date.now()}-${prev.length}`,
               kind: "tool",
-              title: toolNameLabel(data.name),
-              detail: toolStatusLabel(data.status)
+              title: toolNameLabel(String(data.name ?? "")),
+              detail: toolStatusLabel(String(data.status ?? ""))
             }
           ]);
         }
         if (event === "message") {
-          assistantText += data.delta ?? "";
+          assistantText += String(data.delta ?? "");
           setDraft(assistantText);
         }
         if (event === "done") {
           setMessages((prev) => [
             ...prev,
             {
-              id: data.messageId ?? `assistant-${Date.now()}`,
+              id: String(data.messageId ?? `assistant-${Date.now()}`),
               role: "ASSISTANT",
               content: assistantText
             }
@@ -133,12 +138,13 @@ export default function ChatPage() {
           setDraft("");
         }
         if (event === "error") {
-          setError(data.message ?? "消息处理失败");
+          setError(String(data.message ?? "消息处理失败"));
         }
-      });
+      }, requestController.signal);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "消息发送失败");
+      setError(err instanceof DOMException && err.name === "AbortError" ? "已取消本次请求" : err instanceof Error ? err.message : "消息发送失败");
     } finally {
+      requestControllerRef.current = null;
       setLoading(false);
     }
   }
@@ -207,9 +213,20 @@ export default function ChatPage() {
                 placeholder="输入咨询内容"
                 disabled={loading}
               />
-              <button className="icon-button" type="submit" aria-label="发送消息" disabled={loading || !conversation}>
-                <Send size={18} />
-              </button>
+              {loading ? (
+                <button
+                  className="icon-button"
+                  type="button"
+                  aria-label="取消生成"
+                  onClick={() => requestControllerRef.current?.abort()}
+                >
+                  <Square size={17} />
+                </button>
+              ) : (
+                <button className="icon-button" type="submit" aria-label="发送消息" disabled={!conversation}>
+                  <Send size={18} />
+                </button>
+              )}
             </form>
             {error ? <p className="error">{error}</p> : null}
           </div>
@@ -238,40 +255,6 @@ export default function ChatPage() {
   );
 }
 
-async function readSse(response: Response, onEvent: (event: string, data: Record<string, any>) => void) {
-  const reader = response.body?.getReader();
-  if (!reader) {
-    return;
-  }
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() ?? "";
-    for (const part of parts) {
-      const event = part
-        .split("\n")
-        .find((line) => line.startsWith("event:"))
-        ?.replace("event:", "")
-        .trim();
-      const dataLine = part
-        .split("\n")
-        .find((line) => line.startsWith("data:"))
-        ?.replace("data:", "")
-        .trim();
-      if (event && dataLine) {
-        onEvent(event, JSON.parse(dataLine));
-      }
-    }
-  }
-}
-
 function conversationStatusLabel(value: string) {
   if (value === "ACTIVE") return "会话进行中";
   if (value === "TRANSFERRED_TO_HUMAN") return "已转人工";
@@ -281,6 +264,7 @@ function conversationStatusLabel(value: string) {
 
 function stageLabel(value: string) {
   if (value === "analyzing_intent") return "识别问题类型";
+  if (value === "planning_tool") return "由模型选择白名单工具";
   if (value === "calling_tool") return "查询业务信息";
   if (value === "generating_answer") return "生成回复";
   if (value === "creating_ticket") return "转人工处理中";

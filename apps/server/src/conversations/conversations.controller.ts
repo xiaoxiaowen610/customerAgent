@@ -37,6 +37,13 @@ export class ConversationsController {
     @Res() response: Response
   ) {
     const input = parseBody(SendMessageSchema, body);
+    const abortController = new AbortController();
+    let finished = false;
+    response.on("close", () => {
+      if (!finished) {
+        abortController.abort();
+      }
+    });
     response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
     response.setHeader("Cache-Control", "no-cache, no-transform");
     response.setHeader("Connection", "keep-alive");
@@ -52,13 +59,15 @@ export class ConversationsController {
         user,
         conversationId: id,
         content: input.content,
-        emit
+        emit,
+        signal: abortController.signal
       });
     } catch (error) {
       emit("error", {
         message: error instanceof Error ? error.message : "消息处理失败"
       });
     } finally {
+      finished = true;
       response.end();
     }
   }
