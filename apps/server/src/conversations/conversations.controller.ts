@@ -52,7 +52,6 @@ export class ConversationsController {
         user,
         conversationId: id,
         content: input.content,
-        llmConfig: input.llmConfig,
         emit
       });
     } catch (error) {

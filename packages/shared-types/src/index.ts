@@ -27,17 +27,8 @@ export const IntentResultSchema = z.object({
 
 export type IntentResult = z.infer<typeof IntentResultSchema>;
 
-export const LlmConfigSchema = z.object({
-  apiKey: z.string().trim().min(1).max(200),
-  baseUrl: z.string().trim().url().max(200).optional(),
-  model: z.string().trim().min(1).max(80).optional()
-});
-
-export type LlmConfig = z.infer<typeof LlmConfigSchema>;
-
 export const SendMessageSchema = z.object({
-  content: z.string().trim().min(1).max(1000),
-  llmConfig: LlmConfigSchema.optional()
+  content: z.string().trim().min(1).max(1000)
 });
 
 export const LoginSchema = z.object({

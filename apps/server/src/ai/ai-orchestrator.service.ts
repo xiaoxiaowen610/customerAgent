@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { IntentResult, LlmConfig } from "@finserve/shared-types";
+import { IntentResult } from "@finserve/shared-types";
 import { PrismaService } from "../prisma/prisma.service";
 import { RequestUser } from "../common/current-user.decorator";
 import { TicketsService } from "../tickets/tickets.service";
@@ -28,13 +28,12 @@ export class AiOrchestratorService {
     conversationId: string;
     content: string;
     history: Array<{ role: "USER" | "ASSISTANT" | "SYSTEM" | "TOOL"; content: string }>;
-    llmConfig?: LlmConfig;
     emit: Emit;
   }): Promise<AiTurnResult> {
     const startedAt = Date.now();
     params.emit("status", { stage: "analyzing_intent", label: "正在识别问题" });
 
-    const intent = await this.resolveIntent(params.content, params.history, params.llmConfig);
+    const intent = await this.resolveIntent(params.content, params.history);
     const aiRun = await this.prisma.aiRun.create({
       data: {
         conversationId: params.conversationId,
@@ -101,7 +100,6 @@ export class AiOrchestratorService {
         history: params.history,
         intent,
         toolOutput,
-        llmConfig: params.llmConfig
       });
       await this.prisma.aiRun.update({
         where: { id: aiRun.id },
@@ -195,11 +193,10 @@ export class AiOrchestratorService {
   private async resolveIntent(
     content: string,
     history: Array<{ role: "USER" | "ASSISTANT" | "SYSTEM" | "TOOL"; content: string }>,
-    llmConfig?: LlmConfig
   ) {
-    if (llmConfig?.apiKey && this.llm) {
+    if (this.llm?.isConfigured()) {
       try {
-        return await this.llm.analyzeIntent({ content, history, llmConfig });
+        return await this.llm.analyzeIntent({ content, history });
       } catch {
         return analyzeIntent(content);
       }
@@ -212,16 +209,14 @@ export class AiOrchestratorService {
     history: Array<{ role: "USER" | "ASSISTANT" | "SYSTEM" | "TOOL"; content: string }>;
     intent: IntentResult;
     toolOutput: Record<string, unknown>;
-    llmConfig?: LlmConfig;
   }) {
-    if (params.llmConfig?.apiKey && this.llm) {
+    if (this.llm?.isConfigured()) {
       try {
         return await this.llm.generateAnswer({
           content: params.content,
           history: params.history,
           intent: params.intent,
-          toolOutput: params.toolOutput,
-          llmConfig: params.llmConfig
+          toolOutput: params.toolOutput
         });
       } catch {
         return this.generateFallbackAnswer(params.intent, params.toolOutput);

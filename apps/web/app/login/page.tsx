@@ -9,7 +9,7 @@ import { writeSession, UserSession } from "../../lib/session";
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("user@finserve.dev");
-  const [password, setPassword] = useState("Password123!");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 

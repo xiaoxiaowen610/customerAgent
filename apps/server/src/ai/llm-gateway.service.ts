@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { IntentResult, IntentResultSchema, LlmConfig } from "@finserve/shared-types";
+import { IntentResult, IntentResultSchema } from "@finserve/shared-types";
 
 interface HistoryMessage {
   role: "USER" | "ASSISTANT" | "SYSTEM" | "TOOL";
@@ -8,13 +8,15 @@ interface HistoryMessage {
 
 @Injectable()
 export class LlmGatewayService {
+  isConfigured() {
+    return Boolean(process.env.LLM_API_KEY?.trim());
+  }
+
   async analyzeIntent(params: {
     content: string;
     history: HistoryMessage[];
-    llmConfig: LlmConfig;
   }): Promise<IntentResult> {
     const content = await this.chatCompletion({
-      llmConfig: params.llmConfig,
       messages: [
         {
           role: "system",
@@ -46,10 +48,8 @@ export class LlmGatewayService {
     history: HistoryMessage[];
     intent: IntentResult;
     toolOutput: Record<string, unknown>;
-    llmConfig: LlmConfig;
   }) {
     return this.chatCompletion({
-      llmConfig: params.llmConfig,
       messages: [
         {
           role: "system",
@@ -76,20 +76,20 @@ export class LlmGatewayService {
   }
 
   private async chatCompletion(params: {
-    llmConfig: LlmConfig;
     messages: Array<{ role: "system" | "user"; content: string }>;
     jsonOutput?: boolean;
     temperature: number;
   }) {
-    const baseUrl = normalizeBaseUrl(params.llmConfig.baseUrl);
+    const config = readLlmConfig();
+    const baseUrl = normalizeBaseUrl(config.baseUrl);
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${params.llmConfig.apiKey}`
+        Authorization: `Bearer ${config.apiKey}`
       },
       body: JSON.stringify({
-        model: params.llmConfig.model ?? "deepseek-v4-flash",
+        model: config.model,
         messages: params.messages,
         stream: false,
         temperature: params.temperature,
@@ -125,6 +125,19 @@ export class LlmGatewayService {
 
 function normalizeBaseUrl(value?: string) {
   return (value?.trim() || "https://api.deepseek.com").replace(/\/+$/, "");
+}
+
+export function readLlmConfig() {
+  const apiKey = process.env.LLM_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("LLM_API_KEY 未配置");
+  }
+
+  return {
+    apiKey,
+    baseUrl: process.env.LLM_BASE_URL?.trim() || "https://api.deepseek.com",
+    model: process.env.LLM_MODEL?.trim() || "deepseek-chat"
+  };
 }
 
 function speakerLabel(role: HistoryMessage["role"]) {

@@ -4,7 +4,11 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const passwordHash = await bcrypt.hash("Password123!", 10);
+  const demoPassword = process.env.DEMO_PASSWORD?.trim();
+  if (!demoPassword) {
+    throw new Error("必须配置 DEMO_PASSWORD 才能生成演示账号");
+  }
+  const passwordHash = await bcrypt.hash(demoPassword, 10);
 
   const user = await prisma.user.upsert({
     where: { email: "user@finserve.dev" },
@@ -53,67 +57,67 @@ async function main() {
     }
   });
 
-  const conversation = await prisma.conversation.create({
-    data: {
-      userId: user.id,
-      title: "还款失败咨询",
-      messages: {
-        create: [
-          { role: "USER", content: "我的还款为什么失败了？" },
-          {
-            role: "ASSISTANT",
-            content: "查询到最近一笔还款失败，原因是银行卡单笔限额不足。建议更换银行卡或拆分还款金额。"
-          }
-        ]
-      }
-    }
+  const seededTicket = await prisma.ticket.findUnique({
+    where: { ticketNo: "FS-260731-1032" }
   });
 
-  const ticket = await prisma.ticket.upsert({
-    where: { idempotencyKey: `${user.id}:${conversation.id}:seed-demo` },
-    update: {},
-    create: {
-      ticketNo: "FS-260731-1032",
-      userId: user.id,
-      conversationId: conversation.id,
-      category: "repayment_failed",
-      priority: TicketPriority.MEDIUM,
-      status: TicketStatus.PROCESSING,
-      idempotencyKey: `${user.id}:${conversation.id}:seed-demo`,
-      events: {
-        create: [
-          {
-            eventType: "CREATED",
-            operatorType: "AI",
-            payload: { reason: "工具查询成功，但用户仍要求人工确认" }
-          },
-          {
-            eventType: "STATUS_CHANGED",
-            operatorType: "AGENT",
-            operatorId: agent.id,
-            payload: { from: "PENDING", to: "PROCESSING" }
-          }
-        ]
-      },
-      messages: {
-        create: [
-          {
-            authorType: "AI",
-            content: "AI 已附带还款记录和失败原因，请客服复核用户是否需要改卡。"
-          }
-        ]
+  if (!seededTicket) {
+    const conversation = await prisma.conversation.create({
+      data: {
+        userId: user.id,
+        title: "还款失败咨询",
+        messages: {
+          create: [
+            { role: "USER", content: "我的还款为什么失败了？" },
+            {
+              role: "ASSISTANT",
+              content: "查询到最近一笔还款失败，原因是银行卡单笔限额不足。建议更换银行卡或拆分还款金额。"
+            }
+          ]
+        }
       }
-    }
-  });
+    });
 
-  await prisma.ticketMessage.create({
-    data: {
-      ticketId: ticket.id,
-      authorId: agent.id,
-      authorType: "AGENT",
-      content: "已确认失败原因是单笔限额不足，建议用户更换银行卡后重新发起还款。"
-    }
-  });
+    await prisma.ticket.create({
+      data: {
+        ticketNo: "FS-260731-1032",
+        userId: user.id,
+        conversationId: conversation.id,
+        category: "repayment_failed",
+        priority: TicketPriority.MEDIUM,
+        status: TicketStatus.PROCESSING,
+        idempotencyKey: `${user.id}:${conversation.id}:seed-demo`,
+        events: {
+          create: [
+            {
+              eventType: "CREATED",
+              operatorType: "AI",
+              payload: { reason: "工具查询成功，但用户仍要求人工确认" }
+            },
+            {
+              eventType: "STATUS_CHANGED",
+              operatorType: "AGENT",
+              operatorId: agent.id,
+              payload: { from: "PENDING", to: "PROCESSING" }
+            }
+          ]
+        },
+        messages: {
+          create: [
+            {
+              authorType: "AI",
+              content: "AI 已附带还款记录和失败原因，请客服复核用户是否需要改卡。"
+            },
+            {
+              authorType: "AGENT",
+              authorId: agent.id,
+              content: "已确认失败原因是单笔限额不足，建议用户更换银行卡后重新发起还款。"
+            }
+          ]
+        }
+      }
+    });
+  }
 }
 
 main()

@@ -26,18 +26,6 @@ interface TraceItem {
   detail?: string;
 }
 
-interface LlmConfigState {
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-}
-
-const DEFAULT_LLM_CONFIG: LlmConfigState = {
-  apiKey: "",
-  baseUrl: "https://api.deepseek.com",
-  model: "deepseek-v4-flash"
-};
-
 export default function ChatPage() {
   const router = useRouter();
   const messageListRef = useRef<HTMLDivElement | null>(null);
@@ -48,8 +36,6 @@ export default function ChatPage() {
   const [traces, setTraces] = useState<TraceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [llmConfig, setLlmConfig] = useState<LlmConfigState>(DEFAULT_LLM_CONFIG);
-  const [llmReady, setLlmReady] = useState(false);
   const { session, ready } = useSessionState();
 
   useEffect(() => {
@@ -62,30 +48,6 @@ export default function ChatPage() {
     }
     void createConversation();
   }, [ready, router, session]);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("finserve.deepseek.config");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as Partial<LlmConfigState>;
-        setLlmConfig({
-          apiKey: parsed.apiKey ?? DEFAULT_LLM_CONFIG.apiKey,
-          baseUrl: parsed.baseUrl ?? DEFAULT_LLM_CONFIG.baseUrl,
-          model: parsed.model ?? DEFAULT_LLM_CONFIG.model
-        });
-      } catch {
-        window.localStorage.removeItem("finserve.deepseek.config");
-      }
-    }
-    setLlmReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!llmReady) {
-      return;
-    }
-    window.localStorage.setItem("finserve.deepseek.config", JSON.stringify(llmConfig));
-  }, [llmConfig, llmReady]);
 
   useEffect(() => {
     const element = messageListRef.current;
@@ -126,7 +88,7 @@ export default function ChatPage() {
       const response = await fetch(`${API_BASE}/conversations/${conversation.id}/messages`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ content, llmConfig: buildLlmPayload(llmConfig) })
+        body: JSON.stringify({ content })
       });
       if (!response.ok || !response.body) {
         throw new Error(await response.text());
@@ -227,47 +189,9 @@ export default function ChatPage() {
             </div>
           </div>
           <div className="chat-footer">
-            <section className="llm-config-panel" aria-label="模型配置">
-              <div className="panel-heading compact">
-                <h2>模型配置</h2>
-                <span className="pill neutral">{llmConfig.apiKey.trim() ? "DeepSeek 已启用" : "演示模式"}</span>
-              </div>
-              <div className="llm-config-grid">
-                <label className="field">
-                  <span className="label">DeepSeek API Key</span>
-                  <input
-                    className="input"
-                    type="password"
-                    value={llmConfig.apiKey}
-                    onChange={(event) => setLlmConfig((prev) => ({ ...prev, apiKey: event.target.value }))}
-                    placeholder="sk-..."
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </label>
-                <label className="field">
-                  <span className="label">Base URL</span>
-                  <input
-                    className="input"
-                    value={llmConfig.baseUrl}
-                    onChange={(event) => setLlmConfig((prev) => ({ ...prev, baseUrl: event.target.value }))}
-                    placeholder="https://api.deepseek.com"
-                    spellCheck={false}
-                  />
-                </label>
-                <label className="field">
-                  <span className="label">Model</span>
-                  <input
-                    className="input"
-                    value={llmConfig.model}
-                    onChange={(event) => setLlmConfig((prev) => ({ ...prev, model: event.target.value }))}
-                    placeholder="deepseek-v4-flash"
-                    spellCheck={false}
-                  />
-                </label>
-              </div>
-              <p className="muted-copy">仅保存在当前浏览器；留空 API Key 时继续走本地演示编排。</p>
-            </section>
+            <div className="model-mode-note">
+              模型能力由服务端安全配置；未配置模型密钥时自动使用确定性演示模式。
+            </div>
             <div className="prompt-row">
               {["帮我查一下借款审核进度", "为什么还款失败", "我要转人工"].map((prompt) => (
                 <button key={prompt} className="prompt-chip" type="button" onClick={() => setInput(prompt)}>
@@ -375,15 +299,4 @@ function toolStatusLabel(value: string) {
   if (value === "EMPTY") return "未查到结果";
   if (value === "FAILED") return "查询失败";
   return value;
-}
-
-function buildLlmPayload(config: LlmConfigState) {
-  if (!config.apiKey.trim()) {
-    return undefined;
-  }
-  return {
-    apiKey: config.apiKey.trim(),
-    ...(config.baseUrl.trim() ? { baseUrl: config.baseUrl.trim() } : {}),
-    ...(config.model.trim() ? { model: config.model.trim() } : {})
-  };
 }

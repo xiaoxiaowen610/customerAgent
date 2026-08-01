@@ -7,6 +7,8 @@ const tokenTtl = "8h";
 
 @Injectable()
 export class AuthService {
+  private readonly jwtSecretValue = resolveJwtSecret();
+
   constructor(private readonly prisma: PrismaService) {}
 
   async login(email: string, password: string) {
@@ -36,6 +38,14 @@ export class AuthService {
   }
 
   get jwtSecret() {
-    return process.env.JWT_SECRET ?? "finserve-local-secret";
+    return this.jwtSecretValue;
   }
+}
+
+export function resolveJwtSecret() {
+  const configured = process.env.JWT_SECRET?.trim();
+  if (configured) {
+    return configured;
+  }
+  throw new Error("必须配置 JWT_SECRET");
 }

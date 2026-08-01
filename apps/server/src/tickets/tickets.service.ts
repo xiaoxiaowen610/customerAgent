@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, TicketPriority, TicketStatus } from "@prisma/client";
 import { TicketStatus as SharedTicketStatus } from "@finserve/shared-types";
 import { PrismaService } from "../prisma/prisma.service";
@@ -84,6 +84,19 @@ export class TicketsService {
   }
 
   async createManual(input: { userId: string; conversationId?: string; category: string; reason: string }) {
+    if (input.conversationId) {
+      const conversation = await this.prisma.conversation.findUnique({
+        where: { id: input.conversationId },
+        select: { userId: true }
+      });
+      if (!conversation) {
+        throw new NotFoundException("会话不存在");
+      }
+      if (conversation.userId !== input.userId) {
+        throw new ForbiddenException("不能为他人的会话创建工单");
+      }
+    }
+
     const conversationId = input.conversationId ?? "manual";
     const idempotencyKey = buildTicketIdempotencyKey(input.userId, conversationId, `manual-${input.category}`);
     const existing = await this.prisma.ticket.findUnique({ where: { idempotencyKey } });

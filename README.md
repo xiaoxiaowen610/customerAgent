@@ -13,17 +13,18 @@
 
 | 角色 | 邮箱 | 密码 |
 |---|---|---|
-| 用户 | `user@finserve.dev` | `Password123!` |
-| 客服 | `agent@finserve.dev` | `Password123!` |
+| 用户 | `user@finserve.dev` | 使用 `.env` 中的 `DEMO_PASSWORD` |
+| 客服 | `agent@finserve.dev` | 使用 `.env` 中的 `DEMO_PASSWORD` |
 
 ## 本地启动
 
 ```bash
 pnpm install
 cp .env.example .env
+# 将 .env 中的占位符替换为本地开发值
 docker compose up -d postgres
 pnpm db:generate
-pnpm --filter @finserve/server prisma:push
+pnpm db:deploy
 pnpm db:seed
 pnpm dev
 ```
@@ -38,7 +39,17 @@ pnpm dev
 docker compose up --build
 ```
 
-Compose 会启动 PostgreSQL、Server、Web，并用 `prisma db push` 初始化演示库。
+Compose 会启动 PostgreSQL、Server、Web，并用版本化 migration 初始化演示库。
+
+模型密钥只允许配置在服务端环境变量中：
+
+```bash
+LLM_API_KEY=your-server-side-key
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-chat
+```
+
+未配置 `LLM_API_KEY` 时，项目自动使用确定性演示模式；浏览器不会保存或提交模型密钥。
 
 ## 核心流程
 

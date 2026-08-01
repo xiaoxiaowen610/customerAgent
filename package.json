@@ -10,6 +10,7 @@
     "lint": "pnpm -r lint",
     "db:generate": "pnpm --filter @finserve/server prisma:generate",
     "db:migrate": "pnpm --filter @finserve/server prisma:migrate",
+    "db:deploy": "pnpm --filter @finserve/server prisma:deploy",
     "db:seed": "pnpm --filter @finserve/server prisma:seed"
   },
   "devDependencies": {

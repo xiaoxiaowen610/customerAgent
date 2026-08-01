@@ -93,6 +93,7 @@ describe("AI orchestrator workflow", () => {
     };
     const tickets = { createFromAi: vi.fn() };
     const llm = {
+      isConfigured: vi.fn().mockReturnValue(true),
       analyzeIntent: vi.fn().mockResolvedValue({
         intent: "loan_status",
         confidence: 0.96,
@@ -108,11 +109,6 @@ describe("AI orchestrator workflow", () => {
       conversationId: "conv_1",
       content: "帮我查一下借款审核进度",
       history: [{ role: "USER", content: "帮我查一下借款审核进度" }],
-      llmConfig: {
-        apiKey: "sk-test",
-        baseUrl: "https://api.deepseek.com",
-        model: "deepseek-v4-flash"
-      },
       emit: vi.fn()
     });
 

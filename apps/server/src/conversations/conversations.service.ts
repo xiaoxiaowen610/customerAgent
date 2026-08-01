@@ -1,5 +1,4 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { LlmConfig } from "@finserve/shared-types";
 import { PrismaService } from "../prisma/prisma.service";
 import { RequestUser } from "../common/current-user.decorator";
 import { AiOrchestratorService } from "../ai/ai-orchestrator.service";
@@ -47,7 +46,6 @@ export class ConversationsService {
     user: RequestUser;
     conversationId: string;
     content: string;
-    llmConfig?: LlmConfig;
     emit: Emit;
   }) {
     await this.assertAccess(params.user, params.conversationId);
@@ -101,7 +99,7 @@ export class ConversationsService {
     if (!conversation) {
       throw new NotFoundException("会话不存在");
     }
-    if (conversation.userId !== user.id && user.role === "USER") {
+    if (conversation.userId !== user.id) {
       throw new ForbiddenException("不能访问他人的会话");
     }
   }
