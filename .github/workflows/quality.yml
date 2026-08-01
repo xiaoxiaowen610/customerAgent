@@ -33,6 +33,9 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
+      - name: Build shared types
+        run: pnpm --filter @finserve/shared-types build
+
       - name: Type check
         run: pnpm lint
 
@@ -82,6 +85,9 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm db:generate
+
+      - name: Build shared types
+        run: pnpm --filter @finserve/shared-types build
 
       - name: Deploy migrations
         run: pnpm db:deploy
