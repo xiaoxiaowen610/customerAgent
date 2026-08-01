@@ -1,16 +1,18 @@
-import { INestApplication } from "@nestjs/common";
+import { createRequire } from "node:module";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { AppModule } from "./app.module";
-import { configureApp } from "./app.setup";
-import { PrismaService } from "./prisma/prisma.service";
+
+const require = createRequire(import.meta.url);
+const { AppModule } = require("../dist/app.module.js");
+const { configureApp } = require("../dist/app.setup.js");
+const { PrismaService } = require("../dist/prisma/prisma.service.js");
 
 describe("FinServe core journey (PostgreSQL)", () => {
-  let app: INestApplication;
-  let prisma: PrismaService;
-  let userToken: string;
-  let agentToken: string;
+  let app;
+  let prisma;
+  let userToken;
+  let agentToken;
   const password = process.env.DEMO_PASSWORD ?? "";
 
   beforeAll(async () => {
@@ -26,9 +28,9 @@ describe("FinServe core journey (PostgreSQL)", () => {
 
   afterAll(async () => app?.close());
 
-  async function login(email: string) {
+  async function login(email) {
     const response = await request(app.getHttpServer()).post("/api/auth/login").send({ email, password }).expect(201);
-    return response.body.token as string;
+    return response.body.token;
   }
 
   it("reports liveness and database readiness", async () => {
@@ -70,7 +72,7 @@ describe("FinServe core journey (PostgreSQL)", () => {
     const ticketId = stream.text.match(/"ticketId":"([^"]+)"/)?.[1];
     expect(ticketId).toBeTruthy();
     const detail = await request(app.getHttpServer()).get(`/api/admin/tickets/${ticketId}`).set("Authorization", `Bearer ${agentToken}`).expect(200);
-    expect(detail.body.events.some((event: { payload?: { requestId?: string } }) => event.payload?.requestId === requestId)).toBe(true);
+    expect(detail.body.events.some((event) => event.payload?.requestId === requestId)).toBe(true);
 
     await request(app.getHttpServer())
       .post(`/api/admin/tickets/${ticketId}/replies`)
