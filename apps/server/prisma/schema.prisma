@@ -135,6 +135,7 @@ model TicketMessage {
 
 model AiRun {
   id             String       @id @default(uuid())
+  requestId      String?
   conversationId String
   intent         String
   confidence     Decimal      @db.Decimal(3, 2)
@@ -146,10 +147,12 @@ model AiRun {
   toolCalls      ToolCallRecord[]
 
   @@index([conversationId, createdAt])
+  @@index([requestId])
 }
 
 model ToolCallRecord {
   id        String   @id @default(uuid())
+  requestId String?
   aiRunId   String
   toolName  String
   input     Json?
@@ -160,6 +163,7 @@ model ToolCallRecord {
   aiRun     AiRun    @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
 
   @@index([aiRunId, createdAt])
+  @@index([requestId])
 }
 
 model LoanApplication {

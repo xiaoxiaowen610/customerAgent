@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Post, Res, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { Response } from "express";
 import { SendMessageSchema } from "@finserve/shared-types";
@@ -34,6 +34,7 @@ export class ConversationsController {
     @CurrentUser() user: RequestUser,
     @Param("id") id: string,
     @Body() body: unknown,
+    @Headers("x-request-id") requestId: string,
     @Res() response: Response
   ) {
     const input = parseBody(SendMessageSchema, body);
@@ -59,6 +60,7 @@ export class ConversationsController {
         user,
         conversationId: id,
         content: input.content,
+        requestId,
         emit,
         signal: abortController.signal
       });

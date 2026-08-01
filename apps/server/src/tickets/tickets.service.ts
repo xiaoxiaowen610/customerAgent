@@ -8,6 +8,7 @@ interface CreateFromAiInput {
   userId: string;
   conversationId: string;
   aiRunId: string;
+  requestId?: string;
   category: string;
   reason: string;
   priority: "LOW" | "MEDIUM" | "HIGH";
@@ -47,7 +48,7 @@ export class TicketsService {
             ticketId: ticket.id,
             eventType: "CREATED",
             operatorType: "AI",
-            payload: { category: input.category, reason: input.reason }
+            payload: { category: input.category, reason: input.reason, requestId: input.requestId }
           }
         });
 
@@ -140,16 +141,32 @@ export class TicketsService {
     });
   }
 
-  async listForAgent(filters: { status?: string; category?: string; q?: string }) {
-    return this.prisma.ticket.findMany({
-      where: {
-        status: parseTicketStatus(filters.status),
-        category: filters.category || undefined,
-        ticketNo: filters.q ? { contains: filters.q, mode: "insensitive" } : undefined
-      },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-      select: ticketListSelect
-    });
+  async listForAgent(filters: { status?: string; category?: string; q?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, filters.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
+    const search = filters.q?.trim();
+    const where: Prisma.TicketWhereInput = {
+      status: parseTicketStatus(filters.status),
+      category: filters.category || undefined,
+      OR: search
+        ? [
+            { ticketNo: { contains: search, mode: "insensitive" } },
+            { user: { name: { contains: search, mode: "insensitive" } } },
+            { user: { email: { contains: search, mode: "insensitive" } } }
+          ]
+        : undefined
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where,
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "asc" }],
+        select: ticketListSelect,
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      }),
+      this.prisma.ticket.count({ where })
+    ]);
+    return { items, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
   async getForUser(ticketId: string, userId: string) {

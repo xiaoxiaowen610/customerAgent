@@ -27,6 +27,7 @@ export class AiOrchestratorService {
     user: RequestUser;
     conversationId: string;
     content: string;
+    requestId?: string;
     history: HistoryMessage[];
     emit: Emit;
     signal?: AbortSignal;
@@ -41,6 +42,7 @@ export class AiOrchestratorService {
     user: RequestUser;
     conversationId: string;
     content: string;
+    requestId?: string;
     history: HistoryMessage[];
     emit: Emit;
     signal?: AbortSignal;
@@ -50,6 +52,7 @@ export class AiOrchestratorService {
     const aiRun = await this.prisma.aiRun.create({
       data: {
         conversationId: params.conversationId,
+        requestId: params.requestId,
         intent: "tool_call_pending",
         confidence: 1,
         status: "RUNNING",
@@ -124,7 +127,7 @@ export class AiOrchestratorService {
       }
 
       if (phase === "planning") {
-        await this.recordPlanningFailure(aiRun.id, plannedCall, error, startedAt);
+        await this.recordPlanningFailure(aiRun.id, plannedCall, error, startedAt, params.requestId);
       } else {
         await this.prisma.aiRun.update({
           where: { id: aiRun.id },
@@ -149,6 +152,7 @@ export class AiOrchestratorService {
     user: RequestUser;
     conversationId: string;
     content: string;
+    requestId?: string;
     history: HistoryMessage[];
     emit: Emit;
     signal?: AbortSignal;
@@ -159,6 +163,7 @@ export class AiOrchestratorService {
     const aiRun = await this.prisma.aiRun.create({
       data: {
         conversationId: params.conversationId,
+        requestId: params.requestId,
         intent: intent.intent,
         confidence: intent.confidence,
         status: "RUNNING",
@@ -230,6 +235,7 @@ export class AiOrchestratorService {
     input: Record<string, unknown>;
     user: RequestUser;
     conversationId: string;
+    requestId?: string;
     emit: Emit;
     signal?: AbortSignal;
   }): Promise<Record<string, unknown> | null> {
@@ -239,11 +245,13 @@ export class AiOrchestratorService {
         userId: params.user.id,
         conversationId: params.conversationId,
         aiRunId: params.aiRunId,
+        requestId: params.requestId,
         signal: params.signal
       });
       await this.prisma.toolCallRecord.create({
         data: {
           aiRunId: params.aiRunId,
+          requestId: params.requestId,
           toolName: params.name,
           input: params.input as Prisma.InputJsonValue,
           output: (output ?? { result: null }) as Prisma.InputJsonValue,
@@ -257,6 +265,7 @@ export class AiOrchestratorService {
       await this.prisma.toolCallRecord.create({
         data: {
           aiRunId: params.aiRunId,
+          requestId: params.requestId,
           toolName: params.name,
           input: params.input as Prisma.InputJsonValue,
           output: { code: runtimeCode(error), message: safeRuntimeReason(error) },
@@ -273,6 +282,7 @@ export class AiOrchestratorService {
     user: RequestUser;
     conversationId: string;
     content: string;
+    requestId?: string;
     history: HistoryMessage[];
     emit: Emit;
     signal?: AbortSignal;
@@ -288,6 +298,7 @@ export class AiOrchestratorService {
       input: { category: params.category, reason: params.reason },
       user: params.user,
       conversationId: params.conversationId,
+      requestId: params.requestId,
       emit: params.emit,
       signal: params.signal
     });
@@ -300,7 +311,8 @@ export class AiOrchestratorService {
     aiRunId: string,
     call: PlannedToolCall | undefined,
     error: unknown,
-    startedAt: number
+    startedAt: number,
+    requestId?: string
   ) {
     await this.prisma.aiRun.update({
       where: { id: aiRunId },
@@ -314,6 +326,7 @@ export class AiOrchestratorService {
       await this.prisma.toolCallRecord.create({
         data: {
           aiRunId,
+          requestId,
           toolName: call.name,
           input: { rawArguments: call.arguments },
           output: { code: runtimeCode(error), message: safeRuntimeReason(error) },

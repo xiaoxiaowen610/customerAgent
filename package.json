@@ -7,6 +7,8 @@
     "dev": "pnpm --filter @finserve/shared-types build && concurrently -n server,web -c cyan,green \"pnpm --filter @finserve/server dev\" \"pnpm --filter @finserve/web dev\"",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
+    "test:integration": "pnpm --filter @finserve/server test:integration",
+    "test:e2e": "playwright test",
     "lint": "pnpm -r lint",
     "db:generate": "pnpm --filter @finserve/server prisma:generate",
     "db:migrate": "pnpm --filter @finserve/server prisma:migrate",
@@ -14,7 +16,9 @@
     "db:seed": "pnpm --filter @finserve/server prisma:seed"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "concurrently": "^9.1.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "wait-on": "^8.0.5"
   }
 }

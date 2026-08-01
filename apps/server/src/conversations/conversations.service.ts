@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { RequestUser } from "../common/current-user.decorator";
 import { AiOrchestratorService } from "../ai/ai-orchestrator.service";
@@ -7,6 +7,8 @@ type Emit = (event: "status" | "tool" | "message" | "done" | "error", data: unkn
 
 @Injectable()
 export class ConversationsService {
+  private readonly logger = new Logger(ConversationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiOrchestratorService
@@ -46,9 +48,11 @@ export class ConversationsService {
     user: RequestUser;
     conversationId: string;
     content: string;
+    requestId?: string;
     emit: Emit;
     signal?: AbortSignal;
   }) {
+    this.logger.log(JSON.stringify({ event: "ai_turn_started", requestId: params.requestId, userId: params.user.id, conversationId: params.conversationId }));
     await this.assertAccess(params.user, params.conversationId);
 
     const previousHistory = await this.prisma.message.findMany({
@@ -87,6 +91,7 @@ export class ConversationsService {
       messageId: assistant.id,
       ticketId: result.ticketId
     });
+    this.logger.log(JSON.stringify({ event: "ai_turn_completed", requestId: params.requestId, userId: params.user.id, conversationId: params.conversationId, ticketId: result.ticketId }));
   }
 
   private async assertAccess(user: RequestUser, conversationId: string) {
