@@ -1,0 +1,19 @@
+{
+  "name": "finserve-ai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "scripts": {
+    "dev": "pnpm --filter @finserve/shared-types build && concurrently -n server,web -c cyan,green \"pnpm --filter @finserve/server dev\" \"pnpm --filter @finserve/web dev\"",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @finserve/server prisma:generate",
+    "db:migrate": "pnpm --filter @finserve/server prisma:migrate",
+    "db:seed": "pnpm --filter @finserve/server prisma:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  }
+}

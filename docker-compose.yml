@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: finserve-postgres
+    environment:
+      POSTGRES_USER: finserve
+      POSTGRES_PASSWORD: finserve
+      POSTGRES_DB: finserve
+    ports:
+      - "5432:5432"
+    volumes:
+      - finserve_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finserve -d finserve"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: finserve-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://finserve:finserve@postgres:5432/finserve?schema=public
+      JWT_SECRET: finserve-local-secret
+      WEB_ORIGIN: http://localhost:3000
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    command: >
+      sh -c "pnpm --filter @finserve/server prisma:push &&
+             pnpm --filter @finserve/server prisma:seed &&
+             pnpm --filter @finserve/server start"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api
+    container_name: finserve-web
+    depends_on:
+      - server
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api
+    ports:
+      - "3000:3000"
+
+volumes:
+  finserve_pg:
