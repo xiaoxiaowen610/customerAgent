@@ -16,15 +16,16 @@ test("agent runs regression suite and manages prompt governance", async ({ page 
 
   await page.getByRole("button", { name: "运行 Golden Suite" }).click();
   await expect(page.getByText(/回归完成：\d+\/\d+ 通过/)).toBeVisible();
-  await expect(page.getByText("loan-status-routing").first()).toBeVisible();
+  await expect(page.getByText("loan-status-routing", { exact: true }).first()).toBeVisible();
 
   const prompt = "你是经过 E2E 验证的消费金融客服 Agent。只能调用白名单工具，禁止编造事实，遇到未知问题、投诉和人工请求必须创建工单。";
   await page.getByPlaceholder("输入新的客服 Agent 系统 Prompt，保存为草稿版本").fill(prompt);
   await page.getByRole("button", { name: "创建 Prompt 草稿" }).click();
-  await expect(page.getByText("已创建新的 Prompt 草稿版本")).toBeVisible();
-  await expect(page.getByText(prompt)).toBeVisible();
+  await expect(page.getByText("已创建新的 Prompt 草稿版本", { exact: true })).toBeVisible();
+  const promptText = page.getByText(prompt, { exact: true });
+  await expect(promptText).toBeVisible();
 
-  const promptCard = page.locator("div").filter({ hasText: prompt }).last();
-  await promptCard.getByRole("button", { name: "激活" }).click();
-  await expect(page.getByText("Prompt 版本已激活，旧版本已归档")).toBeVisible();
+  const promptCard = promptText.locator("xpath=../..");
+  await promptCard.getByRole("button", { name: "激活", exact: true }).click();
+  await expect(page.getByText("Prompt 版本已激活，旧版本已归档", { exact: true })).toBeVisible();
 });
