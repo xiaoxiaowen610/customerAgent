@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, ClipboardList, LogOut, MessageSquareText, TicketCheck } from "lucide-react";
+import { Activity, BrainCircuit, ClipboardList, LogOut, MessageSquareText, TicketCheck } from "lucide-react";
 import type { Role } from "@finserve/shared-types";
 import { clearSession } from "../lib/session";
 
@@ -17,6 +17,7 @@ export function AppShell({ children, role }: { children: React.ReactNode; role: 
         ]
       : [
           { href: "/admin/dashboard", label: "运行指标", icon: Activity },
+          { href: "/admin/evaluation", label: "质量治理", icon: BrainCircuit },
           { href: "/admin/tickets", label: "工单工作台", icon: ClipboardList },
           { href: "/chat", label: "用户视角", icon: MessageSquareText }
         ];
