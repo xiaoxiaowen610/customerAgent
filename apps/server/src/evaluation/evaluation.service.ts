@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, PromptVersionStatus, ReviewPriority, ReviewTaskStatus } from "@prisma/client";
+import { PromptVersionStatus, ReviewPriority, ReviewTaskStatus } from "@prisma/client";
 import { z } from "zod";
 import { analyzeIntent, shouldEscalateIntent } from "../ai/intent";
 import { PrismaService } from "../prisma/prisma.service";
@@ -15,7 +15,7 @@ const createCaseSchema = z.object({
 });
 
 const createPromptSchema = z.object({
-  name: z.string().trim().min(3).max(80).default("customer-service"),
+  name: z.string().trim().min(3).max(80).optional(),
   content: z.string().trim().min(20).max(12000)
 });
 
@@ -138,10 +138,10 @@ export class EvaluationService {
 
   async createPrompt(input: unknown) {
     const parsed = parseOrThrow(createPromptSchema, input);
-    const promptName = parsed.name ?? "customer-service";
-    const latest = await this.prisma.promptVersion.findFirst({ where: { name: promptName }, orderBy: { version: "desc" } });
+    const name = parsed.name ?? "customer-service";
+    const latest = await this.prisma.promptVersion.findFirst({ where: { name }, orderBy: { version: "desc" } });
     return this.prisma.promptVersion.create({
-      data: { name: promptName, version: (latest?.version ?? 0) + 1, content: parsed.content }
+      data: { name, version: (latest?.version ?? 0) + 1, content: parsed.content }
     });
   }
 
