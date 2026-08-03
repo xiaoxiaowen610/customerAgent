@@ -47,16 +47,42 @@ enum OperatorType {
   AI
 }
 
+enum PromptVersionStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ReviewTaskStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ReviewPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum EvaluationRunMode {
+  DETERMINISTIC
+  LLM
+}
+
 model User {
-  id           String         @id @default(uuid())
-  email        String         @unique
-  name         String
-  passwordHash String
-  role         Role           @default(USER)
-  createdAt    DateTime       @default(now())
-  conversations Conversation[]
-  tickets      Ticket[]
+  id             String            @id @default(uuid())
+  email          String            @unique
+  name           String
+  passwordHash   String
+  role           Role              @default(USER)
+  createdAt      DateTime          @default(now())
+  conversations  Conversation[]
+  tickets        Ticket[]
   ticketMessages TicketMessage[]
+  assignedReviews AgentReviewTask[] @relation("ReviewAssignee")
+  reviewedReviews AgentReviewTask[] @relation("ReviewReviewer")
 }
 
 model Conversation {
@@ -145,6 +171,8 @@ model AiRun {
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   toolCalls      ToolCallRecord[]
+  evaluation     AgentEvaluation?
+  reviewTask     AgentReviewTask?
 
   @@index([conversationId, createdAt])
   @@index([requestId])
@@ -166,27 +194,121 @@ model ToolCallRecord {
   @@index([requestId])
 }
 
+model PromptVersion {
+  id          String              @id @default(uuid())
+  name        String
+  version     Int
+  content     String
+  status      PromptVersionStatus @default(DRAFT)
+  activatedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  evaluations AgentEvaluation[]
+  caseRuns    EvaluationCaseRun[]
+
+  @@unique([name, version])
+  @@index([name, status])
+}
+
+model EvaluationCase {
+  id             String              @id @default(uuid())
+  name           String              @unique
+  input          String
+  expectedIntent String
+  expectedTool   String?
+  expectedAction String
+  tags           Json?
+  enabled        Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  runs           EvaluationCaseRun[]
+
+  @@index([enabled, createdAt])
+}
+
+model AgentEvaluation {
+  id               String         @id @default(uuid())
+  aiRunId          String         @unique
+  promptVersionId  String?
+  correctnessScore Int
+  toolUsageScore   Int
+  latencyScore     Int
+  safetyScore      Int
+  totalScore       Int
+  passed           Boolean
+  reason           Json?
+  createdAt        DateTime       @default(now())
+  aiRun            AiRun          @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
+  promptVersion    PromptVersion? @relation(fields: [promptVersionId], references: [id], onDelete: SetNull)
+  reviewTask       AgentReviewTask?
+
+  @@index([passed, createdAt])
+  @@index([totalScore, createdAt])
+}
+
+model AgentReviewTask {
+  id           String           @id @default(uuid())
+  aiRunId      String           @unique
+  evaluationId String?          @unique
+  reason       String
+  priority     ReviewPriority   @default(MEDIUM)
+  status       ReviewTaskStatus @default(PENDING)
+  assigneeId   String?
+  reviewerId   String?
+  decisionNote String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  reviewedAt   DateTime?
+  aiRun        AiRun            @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
+  evaluation   AgentEvaluation? @relation(fields: [evaluationId], references: [id], onDelete: SetNull)
+  assignee     User?            @relation("ReviewAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  reviewer     User?            @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status, priority, createdAt])
+  @@index([assigneeId, status])
+}
+
+model EvaluationCaseRun {
+  id               String            @id @default(uuid())
+  evaluationCaseId String
+  promptVersionId  String?
+  mode             EvaluationRunMode @default(DETERMINISTIC)
+  actualIntent     String
+  actualTool       String?
+  correctnessScore Int
+  toolUsageScore   Int
+  totalScore       Int
+  passed           Boolean
+  details          Json?
+  createdAt        DateTime          @default(now())
+  evaluationCase   EvaluationCase    @relation(fields: [evaluationCaseId], references: [id], onDelete: Cascade)
+  promptVersion    PromptVersion?    @relation(fields: [promptVersionId], references: [id], onDelete: SetNull)
+
+  @@index([evaluationCaseId, createdAt])
+  @@index([passed, createdAt])
+}
+
 model LoanApplication {
-  id          String   @id @default(uuid())
-  userId      String
-  applicationNo String @unique
-  amountCents Int
-  status      String
-  submittedAt DateTime
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  userId        String
+  applicationNo String   @unique
+  amountCents   Int
+  status        String
+  submittedAt   DateTime
+  updatedAt     DateTime @updatedAt
 
   @@index([userId, submittedAt])
 }
 
 model RepaymentRecord {
-  id          String   @id @default(uuid())
-  userId      String
-  recordNo    String   @unique
-  amountCents Int
-  status      String
+  id           String   @id @default(uuid())
+  userId       String
+  recordNo     String   @unique
+  amountCents  Int
+  status       String
   failedReason String?
-  dueDate     DateTime
-  updatedAt   DateTime @updatedAt
+  dueDate      DateTime
+  updatedAt    DateTime @updatedAt
 
   @@index([userId, dueDate])
 }
