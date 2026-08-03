@@ -83,6 +83,7 @@ export class AiOrchestratorService {
         input: parsedCall.input,
         user: params.user,
         conversationId: params.conversationId,
+        requestId: params.requestId,
         emit: params.emit,
         signal: params.signal
       });
@@ -190,6 +191,7 @@ export class AiOrchestratorService {
         input: {},
         user: params.user,
         conversationId: params.conversationId,
+        requestId: params.requestId,
         emit: params.emit,
         signal: params.signal
       });
