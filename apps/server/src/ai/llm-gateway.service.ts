@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
+import { EvaluationService } from "../evaluation/evaluation.service";
 import type { RegisteredToolDefinition } from "./tool-registry.service";
 
 interface HistoryMessage {
@@ -19,10 +20,13 @@ export interface PlannedToolCall {
   id: string;
   name: string;
   arguments: string;
+  promptVersionId?: string;
 }
 
 @Injectable()
 export class LlmGatewayService {
+  constructor(@Optional() private readonly evaluation?: EvaluationService) {}
+
   isConfigured() {
     return Boolean(process.env.LLM_API_KEY?.trim());
   }
@@ -33,31 +37,31 @@ export class LlmGatewayService {
     tools: RegisteredToolDefinition[];
     signal?: AbortSignal;
   }): Promise<PlannedToolCall> {
-    const payload = await this.requestJson({
-      messages: [
-        {
-          role: "system",
-          content: [
-            "你是消费金融客服 Agent。你不能直接查询数据库，也不能编造业务事实。",
-            "每轮必须且只能调用一个提供的工具。借款进度调用 queryLoanStatus；还款问题调用 queryRepaymentRecord；用户要求人工、投诉、越界问题或无法判断时调用 createSupportTicket。",
-            "不要在工具参数中传入 userId、SQL、代码、URL 或密钥。"
-          ].join("\n")
-        },
-        ...toProviderHistory(params.history),
-        { role: "user", content: params.content }
-      ],
-      tools: params.tools.map((tool) => ({
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters
-        }
-      })),
-      tool_choice: "required",
-      stream: false,
-      temperature: 0.1
-    }, params.signal);
+    const activePrompt = await this.evaluation?.getActivePrompt();
+    const payload = await this.requestJson(
+      {
+        messages: [
+          {
+            role: "system",
+            content: activePrompt?.content ?? defaultPlanningPrompt()
+          },
+          ...toProviderHistory(params.history),
+          { role: "user", content: params.content }
+        ],
+        tools: params.tools.map((tool) => ({
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters
+          }
+        })),
+        tool_choice: "required",
+        stream: false,
+        temperature: 0.1
+      },
+      params.signal
+    );
 
     const message = payload.choices?.[0]?.message;
     const calls = message?.tool_calls ?? [];
@@ -75,7 +79,8 @@ export class LlmGatewayService {
     return {
       id: call.id,
       name: call.function.name,
-      arguments: call.function.arguments ?? "{}"
+      arguments: call.function.arguments ?? "{}",
+      promptVersionId: activePrompt?.id
     };
   }
 
@@ -88,6 +93,7 @@ export class LlmGatewayService {
     signal?: AbortSignal;
   }) {
     const config = readLlmConfig();
+    const activePrompt = await this.evaluation?.getActivePrompt();
     const requestSignal = createRequestSignal(params.signal, 20_000);
     try {
       const response = await fetch(`${normalizeBaseUrl(config.baseUrl)}/chat/completions`, {
@@ -99,8 +105,7 @@ export class LlmGatewayService {
           messages: [
             {
               role: "system",
-              content:
-                "你是消费金融客服助手。只能基于工具结果回答，不得编造。使用中文并分为业务事实、处理建议、风险提示三部分。"
+              content: `${activePrompt?.content ?? defaultPlanningPrompt()}\n\n${answerFormattingPrompt()}`
             },
             ...toProviderHistory(params.history),
             { role: "user", content: params.content },
@@ -241,6 +246,18 @@ export function readLlmConfig() {
   };
 }
 
+function defaultPlanningPrompt() {
+  return [
+    "你是消费金融客服 Agent。你不能直接查询数据库，也不能编造业务事实。",
+    "每轮必须且只能调用一个提供的工具。借款进度调用 queryLoanStatus；还款问题调用 queryRepaymentRecord；用户要求人工、投诉、越界问题或无法判断时调用 createSupportTicket。",
+    "不要在工具参数中传入 userId、SQL、代码、URL 或密钥。"
+  ].join("\n");
+}
+
+function answerFormattingPrompt() {
+  return "只能基于工具结果回答，不得编造。使用中文并分为业务事实、处理建议、风险提示三部分。";
+}
+
 function providerHeaders(apiKey: string) {
   return {
     "Content-Type": "application/json",
@@ -279,11 +296,7 @@ function createRequestSignal(parent: AbortSignal | undefined, timeoutMs: number)
   };
 }
 
-function normalizeRequestAbort(
-  error: unknown,
-  requestSignal: ReturnType<typeof createRequestSignal>,
-  parent?: AbortSignal
-) {
+function normalizeRequestAbort(error: unknown, requestSignal: ReturnType<typeof createRequestSignal>, parent?: AbortSignal) {
   if (requestSignal.timedOut()) {
     return new LlmRuntimeError("LLM_TIMEOUT", "LLM request timed out");
   }
