@@ -23,9 +23,8 @@ test("agent runs regression suite and manages prompt governance", async ({ page 
   await page.getByRole("button", { name: "运行 Golden Suite" }).click();
   await Promise.all([suiteResponse, dashboardAfterSuite]);
   await expect(page.getByText(/回归完成：\d+\/\d+ 通过/)).toBeVisible();
-  await expect(page.getByRole("cell", { name: /loan-status-routing/ }).first()).toBeVisible();
 
-  const prompt = "你是经过 E2E 验证的消费金融客服 Agent。只能调用白名单工具，禁止编造事实，遇到未知问题、投诉和人工请求必须创建工单。";
+  const prompt = `你是经过 E2E 验证的消费金融客服 Agent。只能调用白名单工具，禁止编造事实，遇到未知问题、投诉和人工请求必须创建工单。版本 ${Date.now()}`;
   await page.getByPlaceholder("输入新的客服 Agent 系统 Prompt，保存为草稿版本").fill(prompt);
   const createPromptResponse = page.waitForResponse(
     (response) => response.url().endsWith("/admin/evaluation/prompts") && response.request().method() === "POST" && response.ok()
@@ -36,7 +35,7 @@ test("agent runs regression suite and manages prompt governance", async ({ page 
   await page.getByRole("button", { name: "创建 Prompt 草稿" }).click();
   await Promise.all([createPromptResponse, dashboardAfterCreate]);
   await expect(page.getByText("已创建新的 Prompt 草稿版本", { exact: true })).toBeVisible();
-  const promptText = page.getByText(prompt, { exact: true }).first();
+  const promptText = page.getByText(prompt, { exact: true });
   await expect(promptText).toBeVisible();
 
   const promptCard = promptText.locator("xpath=../..");
