@@ -138,9 +138,10 @@ export class EvaluationService {
 
   async createPrompt(input: unknown) {
     const parsed = parseOrThrow(createPromptSchema, input);
-    const latest = await this.prisma.promptVersion.findFirst({ where: { name: parsed.name }, orderBy: { version: "desc" } });
+    const promptName = parsed.name ?? "customer-service";
+    const latest = await this.prisma.promptVersion.findFirst({ where: { name: promptName }, orderBy: { version: "desc" } });
     return this.prisma.promptVersion.create({
-      data: { name: parsed.name, version: (latest?.version ?? 0) + 1, content: parsed.content }
+      data: { name: promptName, version: (latest?.version ?? 0) + 1, content: parsed.content }
     });
   }
 
