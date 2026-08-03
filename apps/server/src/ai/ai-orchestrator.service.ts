@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { IntentResult } from "@finserve/shared-types";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RequestUser } from "../common/current-user.decorator";
+import { EvaluationService } from "../evaluation/evaluation.service";
 import { analyzeIntent, shouldEscalateIntent } from "./intent";
 import { LlmGatewayService, PlannedToolCall } from "./llm-gateway.service";
 import { ToolName, ToolRegistryService, ToolRuntimeError } from "./tool-registry.service";
@@ -20,7 +21,8 @@ export class AiOrchestratorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tools: ToolRegistryService,
-    private readonly llm: LlmGatewayService
+    private readonly llm: LlmGatewayService,
+    @Optional() private readonly evaluation?: EvaluationService
   ) {}
 
   async run(params: {
@@ -73,7 +75,14 @@ export class AiOrchestratorService {
       phase = "executing";
       await this.prisma.aiRun.update({
         where: { id: aiRun.id },
-        data: { intent: parsedCall.name, metadata: { mode: "llm_tool_call", toolName: parsedCall.name } }
+        data: {
+          intent: parsedCall.name,
+          metadata: {
+            mode: "llm_tool_call",
+            toolName: parsedCall.name,
+            ...(plannedCall.promptVersionId ? { promptVersionId: plannedCall.promptVersionId } : {})
+          }
+        }
       });
 
       params.emit("status", { stage: "calling_tool", label: toolStageLabel(parsedCall.name) });
@@ -90,6 +99,11 @@ export class AiOrchestratorService {
 
       if (parsedCall.name === "createSupportTicket") {
         const result = escalationResult(toolOutput);
+        await this.prisma.aiRun.update({
+          where: { id: aiRun.id },
+          data: { status: "ESCALATED", latencyMs: Date.now() - startedAt }
+        });
+        await this.evaluateSafely(aiRun.id, plannedCall.promptVersionId);
         emitDemoText(result.assistantContent, params.emit);
         return result;
       }
@@ -99,7 +113,8 @@ export class AiOrchestratorService {
           aiRunId: aiRun.id,
           reason: "业务工具没有返回可靠事实",
           category: parsedCall.name === "queryLoanStatus" ? "loan_status" : "repayment_failed",
-          startedAt
+          startedAt,
+          promptVersionId: plannedCall.promptVersionId
         });
       }
 
@@ -117,6 +132,7 @@ export class AiOrchestratorService {
         where: { id: aiRun.id },
         data: { status: "COMPLETED", latencyMs: Date.now() - startedAt }
       });
+      await this.evaluateSafely(aiRun.id, plannedCall.promptVersionId);
       return { assistantContent: answer };
     } catch (error) {
       if (params.signal?.aborted || isAbortError(error)) {
@@ -124,6 +140,7 @@ export class AiOrchestratorService {
           where: { id: aiRun.id },
           data: { status: "CANCELLED", latencyMs: Date.now() - startedAt }
         });
+        await this.evaluateSafely(aiRun.id, plannedCall?.promptVersionId);
         throw error;
       }
 
@@ -144,7 +161,8 @@ export class AiOrchestratorService {
         aiRunId: aiRun.id,
         reason: safeRuntimeReason(error),
         category: "unknown",
-        startedAt
+        startedAt,
+        promptVersionId: plannedCall?.promptVersionId
       });
     }
   }
@@ -212,6 +230,7 @@ export class AiOrchestratorService {
         where: { id: aiRun.id },
         data: { status: "COMPLETED", latencyMs: Date.now() - startedAt }
       });
+      await this.evaluateSafely(aiRun.id);
       return { assistantContent: answer };
     } catch (error) {
       if (params.signal?.aborted || isAbortError(error)) {
@@ -219,6 +238,7 @@ export class AiOrchestratorService {
           where: { id: aiRun.id },
           data: { status: "CANCELLED", latencyMs: Date.now() - startedAt }
         });
+        await this.evaluateSafely(aiRun.id);
         throw error;
       }
       return this.escalate({
@@ -292,6 +312,7 @@ export class AiOrchestratorService {
     reason: string;
     category: IntentResult["intent"];
     startedAt: number;
+    promptVersionId?: string;
   }) {
     params.emit("status", { stage: "creating_ticket", label: "正在安全转人工" });
     const output = await this.executeAndRecord({
@@ -305,8 +326,21 @@ export class AiOrchestratorService {
       signal: params.signal
     });
     const result = escalationResult(output);
+    await this.prisma.aiRun.update({
+      where: { id: params.aiRunId },
+      data: { status: "ESCALATED", latencyMs: Date.now() - params.startedAt }
+    });
+    await this.evaluateSafely(params.aiRunId, params.promptVersionId);
     emitDemoText(result.assistantContent, params.emit);
     return result;
+  }
+
+  private async evaluateSafely(aiRunId: string, promptVersionId?: string) {
+    try {
+      await this.evaluation?.evaluateAndQueue(aiRunId, promptVersionId);
+    } catch {
+      // Evaluation is an observability side effect and must not break the customer response path.
+    }
   }
 
   private async recordPlanningFailure(
