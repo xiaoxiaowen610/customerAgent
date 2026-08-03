@@ -47,8 +47,19 @@ export class ConversationsService {
     conversationId: string;
     content: string;
     emit: Emit;
+    signal?: AbortSignal;
   }) {
     await this.assertAccess(params.user, params.conversationId);
+
+    const previousHistory = await this.prisma.message.findMany({
+      where: { conversationId: params.conversationId },
+      orderBy: { createdAt: "desc" },
+      take: 7,
+      select: {
+        role: true,
+        content: true
+      }
+    });
 
     await this.prisma.message.create({
       data: {
@@ -58,23 +69,10 @@ export class ConversationsService {
       }
     });
 
-    const history = await this.prisma.message.findMany({
-      where: { conversationId: params.conversationId },
-      orderBy: { createdAt: "desc" },
-      take: 8,
-      select: {
-        role: true,
-        content: true
-      }
-    });
-
     const result = await this.ai.run({
       ...params,
-      history: history.reverse()
+      history: previousHistory.reverse()
     });
-    for (const delta of chunkText(result.assistantContent)) {
-      params.emit("message", { delta });
-    }
 
     const assistant = await this.prisma.message.create({
       data: {
@@ -103,12 +101,4 @@ export class ConversationsService {
       throw new ForbiddenException("不能访问他人的会话");
     }
   }
-}
-
-function chunkText(text: string) {
-  const chunks: string[] = [];
-  for (let index = 0; index < text.length; index += 18) {
-    chunks.push(text.slice(index, index + 18));
-  }
-  return chunks;
 }
