@@ -22,7 +22,7 @@ test("agent runs regression suite and manages prompt governance", async ({ page 
   await page.getByPlaceholder("输入新的客服 Agent 系统 Prompt，保存为草稿版本").fill(prompt);
   await page.getByRole("button", { name: "创建 Prompt 草稿" }).click();
   await expect(page.getByText("已创建新的 Prompt 草稿版本", { exact: true })).toBeVisible();
-  const promptText = page.getByText(prompt, { exact: true });
+  const promptText = page.getByText(prompt, { exact: true }).first();
   await expect(promptText).toBeVisible();
 
   const promptCard = promptText.locator("xpath=../..");
