@@ -11,8 +11,8 @@ test("agent runs regression suite and manages prompt governance", async ({ page 
 
   await page.getByRole("link", { name: "质量治理" }).click();
   await expect(page.getByRole("heading", { name: "Agent 质量治理" })).toBeVisible();
-  await expect(page.getByText("Prompt Registry")).toBeVisible();
-  await expect(page.getByText("Human Review")).toBeVisible();
+  await expect(page.getByText("Prompt Registry", { exact: true })).toBeVisible();
+  await expect(page.getByText("Human Review", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "运行 Golden Suite" }).click();
   await expect(page.getByText(/回归完成：\d+\/\d+ 通过/)).toBeVisible();
