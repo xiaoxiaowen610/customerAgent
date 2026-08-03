@@ -17,6 +17,7 @@ export interface ToolContext {
   userId: string;
   conversationId: string;
   aiRunId: string;
+  requestId?: string;
   signal?: AbortSignal;
 }
 
@@ -110,6 +111,7 @@ export class ToolRegistryService {
       userId: context.userId,
       conversationId: context.conversationId,
       aiRunId: context.aiRunId,
+      requestId: context.requestId,
       category: escalation.category,
       reason: escalation.reason,
       priority: escalation.category === "unknown" ? "HIGH" : "MEDIUM"

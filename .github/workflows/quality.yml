@@ -44,3 +44,82 @@ jobs:
 
       - name: Production build
         run: pnpm build
+
+  integration-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: finserve_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d finserve_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/finserve_test?schema=public
+      JWT_SECRET: ci-${{ github.sha }}-${{ github.run_id }}
+      DEMO_PASSWORD: demo-${{ github.run_id }}-safe
+      NODE_ENV: test
+      WEB_ORIGIN: http://127.0.0.1:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Build shared types
+        run: pnpm --filter @finserve/shared-types build
+
+      - name: Deploy migrations
+        run: pnpm db:deploy
+
+      - name: Verify idempotent seed
+        run: pnpm db:seed && pnpm db:seed
+
+      - name: PostgreSQL integration tests
+        run: pnpm test:integration
+
+      - name: Build applications
+        run: pnpm build
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start applications
+        run: |
+          pnpm --filter @finserve/server start > /tmp/finserve-server.log 2>&1 &
+          pnpm --filter @finserve/web start > /tmp/finserve-web.log 2>&1 &
+
+      - name: Wait for applications
+        run: pnpm exec wait-on --timeout 60000 http://127.0.0.1:3001/api/health/ready http://127.0.0.1:3000/login
+
+      - name: Browser end-to-end tests
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/

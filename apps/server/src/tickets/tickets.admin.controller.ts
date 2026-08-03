@@ -27,8 +27,14 @@ export class AdminTicketsController {
   constructor(private readonly tickets: TicketsService) {}
 
   @Get()
-  list(@Query("status") status?: string, @Query("category") category?: string, @Query("q") q?: string) {
-    return this.tickets.listForAgent({ status, category, q });
+  list(
+    @Query("status") status?: string,
+    @Query("category") category?: string,
+    @Query("q") q?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string
+  ) {
+    return this.tickets.listForAgent({ status, category, q, page: positiveInt(page), pageSize: positiveInt(pageSize) });
   }
 
   @Get(":id")
@@ -52,4 +58,10 @@ export class AdminTicketsController {
     const input = parseBody(StatusSchema, body);
     return this.tickets.updateStatus(id, user.id, input.status);
   }
+}
+
+function positiveInt(value?: string) {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }

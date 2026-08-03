@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Filter } from "lucide-react";
+import { ArrowUpRight, Filter, Search } from "lucide-react";
 import { AppShell } from "../../../components/AppShell";
 import { StatusPill } from "../../../components/StatusPill";
 import { apiFetch } from "../../../lib/api";
@@ -19,11 +19,24 @@ interface TicketRow {
   user: { name: string; email: string };
 }
 
+interface TicketPage {
+  items: TicketRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export default function AdminTicketsPage() {
   const router = useRouter();
   const { session, ready } = useSessionState();
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -39,13 +52,18 @@ export default function AdminTicketsPage() {
       return;
     }
     void loadTickets();
-  }, [ready, router, session, status]);
+  }, [ready, router, session, status, page, search]);
 
   async function loadTickets() {
     setError("");
     try {
-      const query = status ? `?status=${status}` : "";
-      setTickets(await apiFetch<TicketRow[]>(`/admin/tickets${query}`));
+      const params = new URLSearchParams({ page: String(page), pageSize: "20" });
+      if (status) params.set("status", status);
+      if (search) params.set("q", search);
+      const result = await apiFetch<TicketPage>(`/admin/tickets?${params}`);
+      setTickets(result.items);
+      setTotal(result.total);
+      setTotalPages(result.totalPages);
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载工单失败");
     }
@@ -62,17 +80,24 @@ export default function AdminTicketsPage() {
           <p className="eyebrow">客服端</p>
           <h1>工单工作台</h1>
         </div>
-        <label className="filter-control">
-          <Filter size={17} />
-          <select className="select compact" value={status} onChange={(event) => setStatus(event.target.value)}>
+        <div className="toolbar-controls">
+          <form className="search-control" onSubmit={(event) => { event.preventDefault(); setPage(1); setSearch(query.trim()); }}>
+            <Search size={17} />
+            <input aria-label="搜索工单" placeholder="工单号、姓名或邮箱" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <button className="button secondary compact" type="submit">搜索</button>
+          </form>
+          <label className="filter-control">
+            <Filter size={17} />
+            <select className="select compact" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value); }}>
             <option value="">全部状态</option>
             <option value="PENDING">待处理</option>
             <option value="PROCESSING">处理中</option>
             <option value="WAITING_USER">等待用户</option>
             <option value="RESOLVED">已解决</option>
             <option value="CLOSED">已关闭</option>
-          </select>
-        </label>
+            </select>
+          </label>
+        </div>
       </header>
 
       <section className="section table-panel">
@@ -117,6 +142,13 @@ export default function AdminTicketsPage() {
           </table>
         )}
       </section>
+      <nav className="pagination" aria-label="工单分页">
+        <span>共 {total} 条 · 第 {page}/{totalPages} 页</span>
+        <div>
+          <button className="button secondary compact" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>上一页</button>
+          <button className="button secondary compact" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>下一页</button>
+        </div>
+      </nav>
     </AppShell>
   );
 }

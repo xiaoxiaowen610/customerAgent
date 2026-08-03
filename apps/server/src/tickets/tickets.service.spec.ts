@@ -44,3 +44,25 @@ describe("manual ticket access control", () => {
     expect(prisma.ticket.create).not.toHaveBeenCalled();
   });
 });
+
+describe("agent ticket pagination", () => {
+  it("uses deterministic server-side pagination and returns metadata", async () => {
+    const items = [{ id: "ticket_2" }];
+    const prisma = {
+      ticket: {
+        findMany: vi.fn().mockResolvedValue(items),
+        count: vi.fn().mockResolvedValue(3)
+      }
+    };
+    const service = new TicketsService(prisma as any);
+
+    await expect(service.listForAgent({ page: 2, pageSize: 1, q: "lin" })).resolves.toMatchObject({
+      items,
+      total: 3,
+      page: 2,
+      pageSize: 1,
+      totalPages: 3
+    });
+    expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 1, take: 1 }));
+  });
+});

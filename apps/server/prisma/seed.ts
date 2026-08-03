@@ -32,6 +32,17 @@ async function main() {
     }
   });
 
+  await prisma.user.upsert({
+    where: { email: "other@finserve.dev" },
+    update: {},
+    create: {
+      email: "other@finserve.dev",
+      name: "另一位用户",
+      role: Role.USER,
+      passwordHash
+    }
+  });
+
   await prisma.loanApplication.upsert({
     where: { applicationNo: "LN-20260731-1847" },
     update: {},
