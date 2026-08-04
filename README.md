@@ -29,9 +29,9 @@ pnpm db:seed
 pnpm dev
 ```
 
-- Web: http://localhost:3000
-- API: http://localhost:3001/api
-- Swagger: http://localhost:3001/docs
+- Web: http://localhost:5000
+- API: http://localhost:5050/api
+- Swagger: http://localhost:5050/docs
 
 ## Docker Compose 启动
 

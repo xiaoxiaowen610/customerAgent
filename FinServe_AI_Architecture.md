@@ -796,7 +796,7 @@ MVP 指标：
 ```mermaid
 flowchart LR
     Browser --> Web[web:3000]
-    Web --> Server[server:3001]
+    Web --> Server[server:5050]
     Server --> DB[(postgres:5432)]
     Server --> LLM[External LLM API]
 ```

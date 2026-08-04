@@ -28,13 +28,13 @@ services:
       DATABASE_URL: ${SERVER_DATABASE_URL:?set SERVER_DATABASE_URL in .env}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       DEMO_PASSWORD: ${DEMO_PASSWORD:?set DEMO_PASSWORD in .env}
-      WEB_ORIGIN: http://localhost:3000
-      PORT: 3001
+      WEB_ORIGIN: http://localhost:5000
+      PORT: 5050
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
       LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
     ports:
-      - "3001:3001"
+      - "5050:5050"
     command: >
       sh -c "pnpm --filter @finserve/server prisma:deploy &&
              pnpm --filter @finserve/server prisma:seed &&
@@ -45,14 +45,14 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:5050/api
     container_name: finserve-web
     depends_on:
       - server
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:5050/api
     ports:
-      - "3000:3000"
+      - "5000:5000"
 
 volumes:
   finserve_pg:

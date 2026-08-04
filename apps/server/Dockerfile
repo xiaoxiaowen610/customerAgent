@@ -14,5 +14,5 @@ RUN pnpm --filter @finserve/shared-types build
 RUN pnpm --filter @finserve/server prisma:generate
 RUN pnpm --filter @finserve/server build
 
-EXPOSE 3001
+EXPOSE 5050
 CMD ["pnpm", "--filter", "@finserve/server", "start"]
